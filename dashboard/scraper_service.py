@@ -183,7 +183,6 @@ def _scrape_worker(business_type: str, country: str, max_cities: int):
             clear_progress_callback,
             ScrapeCancelled,
         )
-
         set_progress_callback(_progress_callback)
 
         with _lock:
