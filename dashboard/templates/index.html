@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lead Generation Dashboard</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-mark"><i class="bi bi-lightning-charge-fill"></i></div>
+      <div class="brand-text">
+        <span class="brand-title">LeadPulse</span>
+        <span class="brand-subtitle">Lead Generation</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="nav-link active" data-tab="scraper">
+        <i class="bi bi-rocket-takeoff-fill"></i> Scraper
+      </a>
+      <a class="nav-link" data-tab="overview">
+        <i class="bi bi-grid-1x2-fill"></i> Dashboard
+      </a>
+      <a class="nav-link" data-tab="leads">
+        <i class="bi bi-table"></i> Leads Database
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sync-status">
+        <span class="sync-dot" id="syncDot"></span>
+        <span id="syncText">Live · refreshes every 30s</span>
+      </div>
+      <div class="last-updated" id="lastUpdated">Never updated</div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN CONTENT ===================== -->
+  <div class="main-area">
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <button class="sidebar-toggle d-lg-none" id="sidebarToggle"><i class="bi bi-list"></i></button>
+      <div class="topbar-title">
+        <h1 id="topbarTitle">Scraper Control</h1>
+        <p id="topbarSubtitle">Configure and run background scrape jobs.</p>
+      </div>
+      <div class="topbar-actions">
+        <div class="global-scraper-badge" id="globalScraperBadge">
+          <span class="badge-pulse"></span> Scraper Active
+        </div>
+        <button class="btn btn-refresh" id="refreshBtn">
+          <i class="bi bi-arrow-clockwise"></i>
+        </button>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- No data banner -->
+      <div id="noDataBanner" class="no-data-banner d-none">
+        <i class="bi bi-inboxes"></i>
+        <div>
+          <h3>No leads generated yet.</h3>
+          <p>Run the scraper pipeline from the Scraper tab to populate leads. The dashboard will pick them up automatically.</p>
+        </div>
+      </div>
+
+      <div id="dashboardBody">
+
+        <!-- ===================== TAB: SCRAPER ===================== -->
+        <div id="tab-scraper" class="tab-content active">
+          <section id="scraper">
+            <div class="section-heading">
+              <h2><i class="bi bi-sliders" style="color:var(--accent)"></i> Configuration</h2>
+            </div>
+
+            <div class="scraper-panel">
+              <div class="scraper-form" id="scraperForm">
+                <div class="scraper-field">
+                  <label for="scrapeBusinessType">Business Type</label>
+                  <input type="text" id="scrapeBusinessType" class="form-control" placeholder="e.g. gym, salon, restaurant" value="gym">
+                </div>
+                <div class="scraper-field">
+                  <label for="scrapeCountry">Country</label>
+                  <input type="text" id="scrapeCountry" class="form-control" placeholder="e.g. india, usa, uk" value="india">
+                </div>
+                <div class="scraper-field scraper-field-sm">
+                  <label for="scrapeMaxCities">Max Cities</label>
+                  <input type="number" id="scrapeMaxCities" class="form-control" min="1" max="200" value="30">
+                </div>
+                <div class="scraper-actions">
+                  <button class="btn btn-scrape-start" id="scrapeStartBtn">
+                    <i class="bi bi-play-fill"></i> Start Scraping
+                  </button>
+                  <button class="btn btn-scrape-stop d-none" id="scrapeStopBtn">
+                    <i class="bi bi-stop-fill"></i> Stop
+                  </button>
+                </div>
+              </div>
+
+              <!-- Progress area — hidden when idle -->
+              <div class="scraper-progress d-none" id="scraperProgress">
+                <div class="scraper-progress-header">
+                  <div class="scraper-status-badges">
+                    <span class="scraper-state-badge" id="scrapeStateBadge">Idle</span>
+                    <span class="scraper-elapsed" id="scrapeElapsed"></span>
+                  </div>
+                  <div class="scraper-stats">
+                    <div class="scraper-stat">
+                      <span class="scraper-stat-value" id="scrapeCitiesDone">0</span>
+                      <span class="scraper-stat-label">Cities Done</span>
+                    </div>
+                    <div class="scraper-stat">
+                      <span class="scraper-stat-value" id="scrapeLeadsFound">0</span>
+                      <span class="scraper-stat-label">Leads Found</span>
+                    </div>
+                    <div class="scraper-stat">
+                      <span class="scraper-stat-value" id="scrapeCurrentCity">—</span>
+                      <span class="scraper-stat-label">Current City</span>
+                    </div>
+                    <div class="scraper-stat">
+                      <span class="scraper-stat-value" id="scrapeBusinessProgress">—</span>
+                      <span class="scraper-stat-label">Business</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="scraper-bar-wrap">
+                  <div class="scraper-bar-track">
+                    <div class="scraper-bar-fill" id="scrapeProgressBar" style="width:0%"></div>
+                  </div>
+                  <span class="scraper-bar-pct" id="scrapeProgressPct">0%</span>
+                </div>
+
+                <div class="scraper-log" id="scrapeLog"></div>
+              </div>
+
+              <!-- Job History Section -->
+              <div class="history-section d-none" id="historySection">
+                <h3><i class="bi bi-clock-history"></i> Recent Runs</h3>
+                <div class="history-table-wrap">
+                  <table class="history-table">
+                    <thead>
+                      <tr>
+                        <th>Start Time</th>
+                        <th>Query</th>
+                        <th>Country</th>
+                        <th>Max Cities</th>
+                        <th>Leads Found</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                      <!-- history rows injected by JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ===================== TAB: DASHBOARD ===================== -->
+        <div id="tab-overview" class="tab-content">
+          <!-- Overview stats -->
+          <section id="overview">
+            <div class="stat-grid">
+              <div class="stat-card">
+                <div class="stat-icon stat-icon-total"><i class="bi bi-people-fill"></i></div>
+                <div class="stat-info">
+                  <span class="stat-label">Total Leads</span>
+                  <span class="stat-value" id="statTotal">—</span>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon stat-icon-hot"><i class="bi bi-fire"></i></div>
+                <div class="stat-info">
+                  <span class="stat-label">Hot Leads</span>
+                  <span class="stat-value" id="statHot">—</span>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon stat-icon-warm"><i class="bi bi-thermometer-half"></i></div>
+                <div class="stat-info">
+                  <span class="stat-label">Warm Leads</span>
+                  <span class="stat-value" id="statWarm">—</span>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon stat-icon-cold"><i class="bi bi-snow2"></i></div>
+                <div class="stat-info">
+                  <span class="stat-label">Cold Leads</span>
+                  <span class="stat-value" id="statCold">—</span>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon stat-icon-score"><i class="bi bi-graph-up-arrow"></i></div>
+                <div class="stat-info">
+                  <span class="stat-label">Avg Lead Score</span>
+                  <span class="stat-value" id="statAvgScore">—</span>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon stat-icon-complete"><i class="bi bi-check2-circle"></i></div>
+                <div class="stat-info">
+                  <span class="stat-label">Avg Completeness</span>
+                  <span class="stat-value" id="statAvgCompleteness">—</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Distribution charts -->
+          <section id="charts">
+            <div class="section-heading">
+              <h2>Lead Distribution</h2>
+            </div>
+            <div class="chart-grid">
+              <div class="chart-card">
+                <h3>Priority Distribution</h3>
+                <div class="chart-canvas-wrap"><canvas id="priorityChart"></canvas></div>
+              </div>
+              <div class="chart-card">
+                <h3>Lead Score Distribution</h3>
+                <div class="chart-canvas-wrap"><canvas id="scoreChart"></canvas></div>
+              </div>
+              <div class="chart-card">
+                <h3>Contact Completeness</h3>
+                <div class="chart-canvas-wrap"><canvas id="completenessChart"></canvas></div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ===================== TAB: LEADS ===================== -->
+        <div id="tab-leads" class="tab-content">
+          <section id="leads">
+            <div class="section-heading">
+              <h2>All Leads</h2>
+              <div class="export-actions">
+                <button class="btn btn-outline-light btn-sm" id="exportCsvBtn"><i class="bi bi-filetype-csv"></i> Export CSV</button>
+                <button class="btn btn-outline-light btn-sm" id="exportExcelBtn"><i class="bi bi-file-earmark-excel"></i> Export Excel</button>
+              </div>
+            </div>
+
+            <div class="table-card">
+              <div class="table-controls">
+                <div class="controls-row primary-controls">
+                  <div class="search-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search business, phone, email, website, city...">
+                  </div>
+
+                  <div class="filter-group">
+                    <select id="priorityFilter" class="form-select form-select-sm">
+                      <option value="all">All Priorities</option>
+                      <option value="Hot">Hot</option>
+                      <option value="Warm">Warm</option>
+                      <option value="Cold">Cold</option>
+                    </select>
+
+                    <select id="scoreFilter" class="form-select form-select-sm">
+                      <option value="">All Scores</option>
+                      <option value="81-100">81 – 100</option>
+                      <option value="61-80">61 – 80</option>
+                      <option value="41-60">41 – 60</option>
+                      <option value="21-40">21 – 40</option>
+                      <option value="0-20">0 – 20</option>
+                    </select>
+
+                    <select id="pageSizeSelect" class="form-select form-select-sm">
+                      <option value="10">10 / page</option>
+                      <option value="25" selected>25 / page</option>
+                      <option value="50">50 / page</option>
+                      <option value="100">100 / page</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="controls-row advanced-controls">
+                  <div class="filter-item">
+                    <label for="spinFilter">Spin</label>
+                    <select id="spinFilter" class="form-select form-select-sm">
+                      <option value="all">All Historical Runs</option>
+                    </select>
+                  </div>
+
+                  <div class="filter-item">
+                    <label for="startDateFilter">From</label>
+                    <input type="date" id="startDateFilter" class="form-control form-control-sm">
+                  </div>
+
+                  <div class="filter-item">
+                    <label for="endDateFilter">To</label>
+                    <input type="date" id="endDateFilter" class="form-control form-control-sm">
+                  </div>
+
+                  <div class="leads-count-badge">
+                    <span id="filteredLeadsCount">0</span> leads matching
+                  </div>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table lead-table" id="leadTable">
+                  <thead>
+                    <tr>
+                      <th data-sort="business_name">Business Name <i class="bi bi-arrow-down-up"></i></th>
+                      <th data-sort="phone">Phone</th>
+                      <th data-sort="email">Email</th>
+                      <th>Website</th>
+                      <th>Instagram</th>
+                      <th>Facebook</th>
+                      <th>LinkedIn</th>
+                      <th data-sort="lead_score">Score <i class="bi bi-arrow-down-up"></i></th>
+                      <th data-sort="priority">Priority <i class="bi bi-arrow-down-up"></i></th>
+                      <th data-sort="contact_completeness">Completeness <i class="bi bi-arrow-down-up"></i></th>
+                    </tr>
+                  </thead>
+                  <tbody id="leadTableBody">
+                    <!-- rows injected by dashboard.js -->
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="table-footer">
+                <span id="tableSummary">Showing 0 of 0 leads</span>
+                <nav>
+                  <ul class="pagination pagination-sm mb-0" id="pagination"></ul>
+                </nav>
+              </div>
+            </div>
+          </section>
+        </div>
+
+      </div> <!-- /dashboardBody -->
+    </main>
+  </div>
+</div>
+
+<!-- ===================== LEAD DETAILS DRAWER ===================== -->
+<div class="details-drawer" id="detailsDrawer">
+  <div class="drawer-header">
+    <h5 id="drawerBusinessName">Lead Details</h5>
+    <button type="button" class="drawer-close-btn" id="drawerCloseBtn"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div class="drawer-body">
+    <div class="lead-detail-badges">
+      <span class="badge-priority" id="drawerPriority">—</span>
+      <span class="badge-score" id="drawerScore">Score: —</span>
+    </div>
+    <dl class="lead-detail-list">
+      <dt><i class="bi bi-envelope"></i> Email</dt>
+      <dd id="drawerEmail">—</dd>
+      <dt><i class="bi bi-telephone"></i> Phone</dt>
+      <dd id="drawerPhone">—</dd>
+      <dt><i class="bi bi-globe"></i> Website</dt>
+      <dd id="drawerWebsite">—</dd>
+      <dt><i class="bi bi-instagram"></i> Instagram</dt>
+      <dd id="drawerInstagram">—</dd>
+      <dt><i class="bi bi-facebook"></i> Facebook</dt>
+      <dd id="drawerFacebook">—</dd>
+      <dt><i class="bi bi-linkedin"></i> LinkedIn</dt>
+      <dd id="drawerLinkedin">—</dd>
+    </dl>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="/static/js/dashboard.js"></script>
+</body>
+</html>

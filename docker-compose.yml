@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  leadgen:
+    build: .
+    image: varenyam3110/leadgen-app:latest
+    container_name: leadgen
+    shm_size: '2gb'
+
+    # Keep stdin open so the app can accept keyboard input
+    stdin_open: true
+    tty: true
+
+    # Mount local ./output folder so CSVs are accessible on your machine
+    volumes:
+      - ./output:/app/output
+
+    # Optional: pass search query as env var to skip the input() prompt
+    # Uncomment and set a value to run non-interactively
+    # environment:
+    #   - SEARCH_QUERY=restaurants in Bhopal
+
+  dashboard:
+    build:
+      context: ./dashboard
+    image: varenyam3110/leadgen-dashboard:latest
+    container_name: leadgen-dashboard
+
+    # Dashboard only reads output/final_ai_leads.csv produced by the
+    # leadgen service above. It never writes to this folder.
+    volumes:
+      - ./output:/app/output:ro
+
+    ports:
+      - "8000:8000"
+
+    environment:
+      - LEADS_CSV_PATH=/app/output/final_ai_leads.csv
+
+    restart: unless-stopped
