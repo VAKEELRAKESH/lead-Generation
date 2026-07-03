@@ -349,6 +349,28 @@ def new_page(browser):
     return page
 
 
+def dismiss_consent_wall(page):
+    """Detect and click Google's cookie consent dialog accept buttons."""
+    try:
+        consent_selectors = [
+            'button:has-text("Accept all")',
+            'button:has-text("I agree")',
+            'form[action*="consent"] button',
+            'div[aria-label="Accept all"]',
+            'button[aria-label="Accept all"]',
+        ]
+        for sel in consent_selectors:
+            btn = page.locator(sel).first
+            if btn.is_visible(timeout=2000):
+                btn.click(timeout=3000)
+                print("  [Dismissed Google consent wall]")
+                page.wait_for_timeout(2000)
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def _save_debug_artifacts(page, city):
     """
     Saves a screenshot + HTML snapshot of whatever page actually loaded
@@ -443,6 +465,7 @@ def scrape_business(link, p, browser, page):
 
             page.goto(link, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(3000)
+            dismiss_consent_wall(page)
 
             try:
                 business_name = clean_text(page.locator("h1").first.inner_text(timeout=5000))
@@ -523,26 +546,7 @@ def scrape_city(business_type, city, p, browser, page):
         time.sleep(5)
 
         # ---- Handle Google's consent wall ----
-        # On clean/datacenter IPs, Google often serves a cookie-consent
-        # interstitial instead of the map. If we don't dismiss it, the
-        # feed selector never appears and we silently get 0 leads.
-        try:
-            consent_selectors = [
-                'button:has-text("Accept all")',
-                'button:has-text("I agree")',
-                'form[action*="consent"] button',
-                'div[aria-label="Accept all"]',
-            ]
-            for sel in consent_selectors:
-                btn = page.locator(sel).first
-                if btn.is_visible(timeout=3000):
-                    btn.click(timeout=5000)
-                    print("  [Dismissed Google consent wall]")
-                    page.wait_for_timeout(3000)
-                    break
-        except Exception:
-            # No consent wall present — that's fine, keep going.
-            pass
+        dismiss_consent_wall(page)
 
         time.sleep(5)
         page.wait_for_selector('div[role="feed"]', timeout=30000)
