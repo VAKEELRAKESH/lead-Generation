@@ -176,14 +176,14 @@ def _update_last_history_entry():
 
 def _scrape_worker(business_type: str, country: str, max_cities: int):
     """Runs in a background thread. Calls generate_leads() and lead_cleaner."""
-    from scrapers.crawler import (
-        generate_leads,
-        set_progress_callback,
-        clear_progress_callback,
-        ScrapeCancelled,
-    )
-
     try:
+        from scrapers.crawler import (
+            generate_leads,
+            set_progress_callback,
+            clear_progress_callback,
+            ScrapeCancelled,
+        )
+
         set_progress_callback(_progress_callback)
 
         with _lock:

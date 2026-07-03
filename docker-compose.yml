@@ -22,14 +22,13 @@ services:
 
   dashboard:
     build:
-      context: ./dashboard
+      context: .
     image: varenyam3110/leadgen-dashboard:latest
     container_name: leadgen-dashboard
 
-    # Dashboard only reads output/final_ai_leads.csv produced by the
-    # leadgen service above. It never writes to this folder.
+    # Mount output directory read-write so the scraper can write results
     volumes:
-      - ./output:/app/output:ro
+      - ./output:/app/output
 
     ports:
       - "8000:8000"
@@ -37,4 +36,5 @@ services:
     environment:
       - LEADS_CSV_PATH=/app/output/final_ai_leads.csv
 
+    command: uvicorn dashboard.app:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
