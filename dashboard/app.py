@@ -209,3 +209,39 @@ def scrape_status():
 @app.post("/api/scrape/stop")
 def scrape_stop():
     return scraper_service.stop_scrape()
+
+
+# ---------------------------------------------------------------------------
+# Debug: inspect files on server
+# ---------------------------------------------------------------------------
+
+@app.get("/api/debug/files")
+def debug_files():
+    import os
+    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output")
+    files_info = {}
+    if os.path.exists(output_dir):
+        for f in os.listdir(output_dir):
+            p = os.path.join(output_dir, f)
+            if os.path.isfile(p):
+                files_info[f] = {
+                    "size_bytes": os.path.getsize(p),
+                    "modified_time": os.path.getmtime(p),
+                }
+                # Preview first 1000 characters of CSV files
+                if f.endswith(".csv"):
+                    try:
+                        with open(p, "r", encoding="utf-8") as file:
+                            files_info[f]["preview"] = file.read(1000)
+                    except Exception as e:
+                        files_info[f]["preview_error"] = str(e)
+            else:
+                files_info[f] = "directory"
+    else:
+        files_info["error"] = f"output directory not found at: {output_dir}"
+
+    return {
+        "cwd": os.getcwd(),
+        "env": {k: v for k, v in os.environ.items() if "LEAD" in k or "COOKIE" in k},
+        "files": files_info
+    }
