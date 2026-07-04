@@ -33,10 +33,10 @@ def _load_cookies() -> list:
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     cookies = json.load(f)
-                print(f"  [Cookies loaded from {path} — {len(cookies)} cookies]")
+                print(f"  [Cookies loaded from {os.path.basename(path)} — {len(cookies)} cookies]")
                 return cookies
             except Exception as e:
-                print(f"  [Cookie load failed from {path}: {e}]")
+                print(f"  [Cookie load failed from {os.path.basename(path)}: {e}]")
     print("  [No google_cookies.json found — running without cookies (may hit consent wall)]")
     return []
 
