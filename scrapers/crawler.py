@@ -1,5 +1,6 @@
 import re
 import time
+import json
 import requests
 import pandas as pd
 import urllib3
@@ -9,6 +10,63 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# ---------------------------------------------------------------------------
+# Cookie injection — bypass Google datacenter-IP consent walls
+# ---------------------------------------------------------------------------
+
+# Looks for cookies in this order:
+#   1. GOOGLE_COOKIES_PATH env var
+#   2. /app/config/google_cookies.json  (Docker / server path)
+#   3. config/google_cookies.json       (local dev path)
+COOKIE_SEARCH_PATHS = [
+    os.environ.get("GOOGLE_COOKIES_PATH", ""),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "google_cookies.json"),
+    "/app/config/google_cookies.json",
+]
+
+
+def _load_cookies() -> list:
+    """Load Google cookies from JSON file. Returns [] if not found."""
+    for path in COOKIE_SEARCH_PATHS:
+        if path and os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    cookies = json.load(f)
+                print(f"  [Cookies loaded from {path} — {len(cookies)} cookies]")
+                return cookies
+            except Exception as e:
+                print(f"  [Cookie load failed from {path}: {e}]")
+    print("  [No google_cookies.json found — running without cookies (may hit consent wall)]")
+    return []
+
+
+def _inject_cookies(context, cookies: list):
+    """Inject cookies into a Playwright browser context."""
+    if not cookies:
+        return
+    try:
+        # Playwright expects: name, value, domain, path — filter to Google domains
+        playwright_cookies = []
+        for c in cookies:
+            entry = {
+                "name": c.get("name", ""),
+                "value": c.get("value", ""),
+                "domain": c.get("domain", ".google.com"),
+                "path": c.get("path", "/"),
+            }
+            # Optional fields
+            if "secure" in c:
+                entry["secure"] = c["secure"]
+            if "httpOnly" in c:
+                entry["httpOnly"] = c["httpOnly"]
+            if "sameSite" in c and c["sameSite"] in ("Strict", "Lax", "None"):
+                entry["sameSite"] = c["sameSite"]
+            playwright_cookies.append(entry)
+        context.add_cookies(playwright_cookies)
+        print(f"  [Injected {len(playwright_cookies)} cookies into browser context]")
+    except Exception as e:
+        print(f"  [Cookie injection error: {e}]")
 
 print("CRAWLER V2 LOADED")
 
@@ -321,6 +379,27 @@ def get_cities(country, max_cities=30):
 # BROWSER HELPERS
 # ============================================
 
+# Titles that indicate a consent/error page — not a real business
+_CONSENT_TITLES = [
+    "before you continue",
+    "sign in",
+    "consent",
+    "google accounts",
+    "verify it's you",
+    "choose an account",
+    "we use cookies",
+]
+
+_LOADED_COOKIES: list = None  # cached after first load
+
+
+def _get_cookies() -> list:
+    global _LOADED_COOKIES
+    if _LOADED_COOKIES is None:
+        _LOADED_COOKIES = _load_cookies()
+    return _LOADED_COOKIES
+
+
 def launch_browser(p):
     return p.chromium.launch(
         headless=True,
@@ -331,46 +410,95 @@ def launch_browser(p):
             "--disable-gpu",
             "--disable-blink-features=AutomationControlled",
             "--memory-pressure-off",
+            "--lang=en-IN",
         ]
     )
 
 
-def new_page(browser):
-    page = browser.new_page(
+def new_context(browser):
+    """
+    Create a new browser context with cookies pre-injected.
+    Use this instead of browser.new_page() directly so cookies
+    persist across pages in the same context.
+    """
+    context = browser.new_context(
         viewport={"width": 1280, "height": 800},
         locale="en-IN",
         timezone_id="Asia/Kolkata",
+        geolocation={"latitude": 20.5937, "longitude": 78.9629},  # India center
+        permissions=["geolocation"],
         user_agent=(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/120.0.0.0 Safari/537.36"
         ),
+        extra_http_headers={"Accept-Language": "en-IN,en;q=0.9"},
     )
-    return page
+    _inject_cookies(context, _get_cookies())
+    return context
+
+
+def new_page(browser):
+    """Create a context+page with cookies injected."""
+    ctx = new_context(browser)
+    return ctx.new_page()
 
 
 def dismiss_consent_wall(page):
-    """Detect and click Google's cookie consent dialog accept buttons."""
-    try:
-        consent_selectors = [
-            'button:has-text("Accept all")',
-            'button:has-text("I agree")',
-            'form[action*="consent"] button >> nth=-1',   # Last button in consent form is 'Accept all'
-            'form[action*="consent"] button:last-of-type',
-            'form[action*="consent"] button',              # Fallback to first button
-            'button:has-text("Accept")',
-            'div[aria-label="Accept all"]',
-            'button[aria-label="Accept all"]',
-        ]
-        for sel in consent_selectors:
-            btn = page.locator(sel).first
-            if btn.is_visible(timeout=2000):
-                btn.click(timeout=3000)
-                print("  [Dismissed Google consent wall]")
-                page.wait_for_timeout(2000)
-                return True
-    except Exception:
-        pass
+    """
+    Detect and click Google's cookie consent dialog.
+    Handles the full-page redirect to consent.google.com that datacenter
+    IPs trigger — retries up to 3 times with longer waits.
+    """
+    consent_selectors = [
+        'button:has-text("Accept all")',
+        'button:has-text("I agree")',
+        'form[action*="consent"] button >> nth=-1',
+        'form[action*="consent"] button:last-of-type',
+        'form[action*="consent"] button',
+        'button:has-text("Accept")',
+        'div[aria-label="Accept all"]',
+        'button[aria-label="Accept all"]',
+        '#L2AGLb',          # "Accept all" button ID seen on consent.google.com
+        '.sy4vM',           # Accept button class on newer consent page
+        'button.tHlp8d',    # Another consent button class variant
+    ]
+
+    for attempt in range(3):
+        try:
+            # If redirected to consent.google.com wait for it to settle
+            current_url = page.url
+            if "consent.google" in current_url or "before you continue" in page.title().lower():
+                print(f"  [Consent wall detected at: {current_url[:80]}]")
+                page.wait_for_load_state("networkidle", timeout=10000)
+
+            clicked = False
+            for sel in consent_selectors:
+                try:
+                    btn = page.locator(sel).first
+                    if btn.is_visible(timeout=4000):
+                        btn.click(timeout=5000)
+                        print(f"  [Dismissed Google consent wall (attempt {attempt+1})]")
+                        page.wait_for_load_state("domcontentloaded", timeout=15000)
+                        page.wait_for_timeout(2000)
+                        clicked = True
+                        break
+                except Exception:
+                    continue
+
+            if clicked:
+                # Verify we're no longer on the consent page
+                if "consent.google" not in page.url:
+                    return True
+                # Still on consent — retry
+                continue
+
+            # No consent button found — we're probably on the real page
+            return False
+
+        except Exception:
+            pass
+
     return False
 
 
@@ -454,6 +582,15 @@ def clean_text(text):
 # SCRAPE SINGLE BUSINESS — with browser restart
 # ============================================
 
+def _is_consent_page(title: str, url: str) -> bool:
+    """Return True if the page is a Google consent/error page, not a real business."""
+    title_lower = (title or "").lower()
+    url_lower = (url or "").lower()
+    if "consent.google" in url_lower:
+        return True
+    return any(t in title_lower for t in _CONSENT_TITLES)
+
+
 def scrape_business(link, p, browser, page):
     for attempt in range(2):
         try:
@@ -468,12 +605,32 @@ def scrape_business(link, p, browser, page):
 
             page.goto(link, wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(3000)
-            dismiss_consent_wall(page)
+
+            # Dismiss consent wall — may redirect then land back on the business page
+            dismissed = dismiss_consent_wall(page)
+            if dismissed:
+                page.wait_for_timeout(2000)
+
+            # Guard: reject consent/error pages so they don't get saved as leads
+            page_title = ""
+            try:
+                page_title = page.title()
+            except Exception:
+                pass
+
+            if _is_consent_page(page_title, page.url):
+                print(f"  [Skipped consent/error page: '{page_title[:60]}']")
+                return None, browser, page
 
             try:
                 business_name = clean_text(page.locator("h1").first.inner_text(timeout=5000))
             except:
                 business_name = ""
+
+            # Extra guard on the extracted business name itself
+            if _is_consent_page(business_name, page.url):
+                print(f"  [Skipped consent page masquerading as lead: '{business_name[:60]}']")
+                return None, browser, page
 
             try:
                 phone = clean_text(page.locator('button[data-item-id*="phone"]').first.inner_text(timeout=5000))

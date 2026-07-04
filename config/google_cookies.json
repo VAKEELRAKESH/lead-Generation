@@ -1,0 +1,47 @@
+[
+  {
+    "name": "SOCS",
+    "value": "CAISHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmVuIAEaBgiA_LyaBg",
+    "domain": ".google.com",
+    "path": "/",
+    "secure": true,
+    "httpOnly": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "CONSENT",
+    "value": "YES+cb.20230810-17-p0.en+FX+111",
+    "domain": ".google.com",
+    "path": "/",
+    "secure": true,
+    "httpOnly": false,
+    "sameSite": "None"
+  },
+  {
+    "name": "SOCS",
+    "value": "CAISHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzIaAmVuIAEaBgiA_LyaBg",
+    "domain": ".google.co.in",
+    "path": "/",
+    "secure": true,
+    "httpOnly": false,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "CONSENT",
+    "value": "YES+cb.20230810-17-p0.en+FX+111",
+    "domain": ".google.co.in",
+    "path": "/",
+    "secure": true,
+    "httpOnly": false,
+    "sameSite": "None"
+  },
+  {
+    "name": "NID",
+    "value": "511=dummy",
+    "domain": ".google.com",
+    "path": "/",
+    "secure": true,
+    "httpOnly": true,
+    "sameSite": "None"
+  }
+]

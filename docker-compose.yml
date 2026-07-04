@@ -31,11 +31,15 @@ services:
     # leadgen service above. It never writes to this folder.
     volumes:
       - ./output:/app/output
+      # Mount config/ so google_cookies.json is available without rebuilding
+      - ./config:/app/config:ro
 
     ports:
       - "8000:8000"
 
     environment:
       - LEADS_CSV_PATH=/app/output/final_ai_leads.csv
+      # Path to Google cookies file for bypassing datacenter-IP consent walls
+      - GOOGLE_COOKIES_PATH=/app/config/google_cookies.json
 
-    restart: unless-stopped
+    restart: unless-stopped
