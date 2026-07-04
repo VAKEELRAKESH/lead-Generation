@@ -611,6 +611,12 @@ def scrape_business(link, p, browser, page):
             if dismissed:
                 page.wait_for_timeout(2000)
 
+            # Wait for details panel h1 element to load
+            try:
+                page.wait_for_selector("h1", timeout=12000)
+            except Exception:
+                pass
+
             # Guard: reject consent/error pages so they don't get saved as leads
             page_title = ""
             try:
@@ -623,9 +629,16 @@ def scrape_business(link, p, browser, page):
                 return None, browser, page
 
             try:
-                business_name = clean_text(page.locator("h1").first.inner_text(timeout=5000))
+                business_name = clean_text(page.locator("h1").first.inner_text(timeout=8000))
             except:
                 business_name = ""
+
+            # Fallback to page title if h1 extraction failed or timed out
+            if not business_name and page_title:
+                clean_title = page_title.split(" - Google")[0].strip()
+                # Extra check to ensure title is not a Google system page
+                if not _is_consent_page(clean_title, page.url):
+                    business_name = clean_title
 
             # Extra guard on the extracted business name itself
             if _is_consent_page(business_name, page.url):
@@ -633,17 +646,17 @@ def scrape_business(link, p, browser, page):
                 return None, browser, page
 
             try:
-                phone = clean_text(page.locator('button[data-item-id*="phone"]').first.inner_text(timeout=5000))
+                phone = clean_text(page.locator('button[data-item-id*="phone"]').first.inner_text(timeout=8000))
             except:
                 phone = ""
 
             try:
-                address = clean_text(page.locator('button[data-item-id="address"]').first.inner_text(timeout=5000))
+                address = clean_text(page.locator('button[data-item-id="address"]').first.inner_text(timeout=8000))
             except:
                 address = ""
 
             try:
-                website = page.locator('a[data-item-id="authority"]').first.get_attribute("href", timeout=5000)
+                website = page.locator('a[data-item-id="authority"]').first.get_attribute("href", timeout=8000)
             except:
                 website = ""
 
