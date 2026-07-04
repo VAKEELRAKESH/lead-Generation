@@ -355,7 +355,10 @@ def dismiss_consent_wall(page):
         consent_selectors = [
             'button:has-text("Accept all")',
             'button:has-text("I agree")',
-            'form[action*="consent"] button',
+            'form[action*="consent"] button >> nth=-1',   # Last button in consent form is 'Accept all'
+            'form[action*="consent"] button:last-of-type',
+            'form[action*="consent"] button',              # Fallback to first button
+            'button:has-text("Accept")',
             'div[aria-label="Accept all"]',
             'button[aria-label="Accept all"]',
         ]
